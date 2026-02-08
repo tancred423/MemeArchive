@@ -2,6 +2,7 @@
 import { ref, watch, computed, onMounted, onUnmounted, nextTick } from "vue";
 
 const password = ref<string>("");
+const passwordInputRef = ref<HTMLInputElement | null>(null);
 const error = ref<string>("");
 const isAuthed = ref<boolean>(false);
 const TOKEN_KEY = "guest_token";
@@ -342,7 +343,10 @@ async function submitMeme() {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      error.value = (data as { error?: string }).error ?? "Failed to update meme";
+      error.value =
+        res.status === 413
+          ? "Image too large. Try a smaller image or ask the admin to raise the upload limit."
+          : ((data as { error?: string }).error ?? "Failed to update meme");
       return;
     }
   } else {
@@ -354,7 +358,10 @@ async function submitMeme() {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      error.value = (data as { error?: string }).error ?? "Failed to add meme";
+      error.value =
+        res.status === 413
+          ? "Image too large. Try a smaller image or ask the admin to raise the upload limit."
+          : ((data as { error?: string }).error ?? "Failed to add meme");
       return;
     }
   }
@@ -474,6 +481,10 @@ onMounted(async () => {
     }
   } catch {
     // not authed
+  }
+  if (!isAuthed.value) {
+    await nextTick();
+    passwordInputRef.value?.focus();
   }
 });
 
@@ -847,6 +858,7 @@ onUnmounted(() => {
           @submit.prevent="submitPassword"
         >
           <input
+            ref="passwordInputRef"
             v-model="password"
             type="password"
             placeholder="Password"
