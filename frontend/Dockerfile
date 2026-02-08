@@ -5,7 +5,7 @@ WORKDIR /app
 ARG VITE_APP_NAME="Meme Archive"
 ENV VITE_APP_NAME=$VITE_APP_NAME
 
-COPY package.json ./
+COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
