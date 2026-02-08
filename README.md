@@ -19,6 +19,15 @@ Copy `.env.skel` to `.env` and set `PASSWORD`. Then:
 
 Dev stack includes a local **MySQL 8** container and **phpMyAdmin**. Backend waits for DB to be healthy before starting. Code changes in `backend/` and `frontend/` are picked up without rebuilding.
 
+## Code quality
+
+With the dev stack up (`./dev.sh up`):
+
+- `./dev.sh check` — run Prettier (check), ESLint, TypeScript, Deno fmt/lint/check (no writes).
+- `./dev.sh fix` — same but applies Prettier and ESLint fixes and Deno fmt.
+
+**If formatted files revert:** some editors reformat when they detect file changes. Close any open tabs for files that get formatted (e.g. `App.vue`) before running `./dev.sh fix`, then commit without reopening them, or turn off “Format on Save” for this project.
+
 ## Prod
 
 Backend expects a **central MySQL server** on the `mysql-network` Docker network. Create that network if needed:
