@@ -38,7 +38,7 @@ Prod uses **pre-built images** from GitHub Container Registry (GHCR). No source 
 docker network create mysql-network
 ```
 
-2. Copy `.env.skel` to `.env` and set in `.env`: `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE` (and optionally `MYSQL_PORT`) so the backend can reach your MySQL server on `mysql-network`. Optionally set `APP_PORT` (default 80) for the port the app is served on.
+2. Copy `.env.skel` to `.env` and set in `.env`: `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE` (and optionally `MYSQL_PORT`) so the backend can reach your MySQL server on `mysql-network`. Optionally set `BACKEND_PORT` (default 8000) and `APP_PORT` (default 80) for the host ports.
 
 3. Log in to GHCR (if private) and start:
 
