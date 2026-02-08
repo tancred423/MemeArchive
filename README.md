@@ -36,7 +36,7 @@ Backend expects a **central MySQL server** on the `mysql-network` Docker network
 docker network create mysql-network
 ```
 
-Set in `.env`: `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE` (and optionally `MYSQL_PORT`) so the backend can reach your MySQL server on `mysql-network`.
+Set in `.env`: `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE` (and optionally `MYSQL_PORT`) so the backend can reach your MySQL server on `mysql-network`. Optionally set `APP_PORT` (default 80) for the port the app is served on.
 
 ```bash
 docker compose up --build
