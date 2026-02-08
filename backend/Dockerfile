@@ -1,0 +1,13 @@
+FROM denoland/deno:2.1.0
+
+WORKDIR /app
+
+COPY deno.json ./
+COPY src/ ./src/
+COPY drizzle/ ./drizzle/
+
+EXPOSE 8000
+
+ENV PORT=8000
+
+CMD ["sh", "-c", "deno task migrate && deno task start"]

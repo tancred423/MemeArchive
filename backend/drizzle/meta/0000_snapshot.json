@@ -1,0 +1,40 @@
+{
+  "version": "5",
+  "dialect": "mysql",
+  "id": "0000",
+  "prevId": "",
+  "tables": {
+    "memes": {
+      "name": "memes",
+      "columns": {
+        "id": { "name": "id", "type": "varchar(36)", "primaryKey": true, "notNull": true, "autoincrement": false },
+        "title": { "name": "title", "type": "varchar(500)", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "tags": { "name": "tags", "type": "json", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "image_data_url": { "name": "image_data_url", "type": "longtext", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "created_at": { "name": "created_at", "type": "datetime(3)", "primaryKey": false, "notNull": true, "autoincrement": false }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "auth_tokens": {
+      "name": "auth_tokens",
+      "columns": {
+        "token": { "name": "token", "type": "varchar(36)", "primaryKey": true, "notNull": true, "autoincrement": false },
+        "created_at": { "name": "created_at", "type": "datetime(3)", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "last_used_at": { "name": "last_used_at", "type": "datetime(3)", "primaryKey": false, "notNull": false, "autoincrement": false }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    }
+  },
+  "schemas": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  }
+}
