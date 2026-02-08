@@ -25,6 +25,9 @@ case "$cmd" in
     $DC up --build -d --force-recreate
     ;;
   check)
+    echo "=== Frontend: install (match CI) ==="
+    $DC exec frontend npm ci
+
     echo "=== Frontend: Prettier (check) ==="
     $DC exec frontend npm run format:check
 
@@ -46,6 +49,9 @@ case "$cmd" in
     echo "All checks passed."
     ;;
   fix)
+    echo "=== Frontend: install (match CI) ==="
+    $DC exec frontend npm ci
+
     echo "=== Frontend: Prettier (write) ==="
     $DC exec frontend npm run format
 
