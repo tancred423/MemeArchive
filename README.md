@@ -30,16 +30,22 @@ With the dev stack up (`./dev.sh up`):
 
 ## Prod
 
-Backend expects a **central MySQL server** on the `mysql-network` Docker network. Create that network if needed:
+Prod uses **pre-built images** from GitHub Container Registry (GHCR). No source code or build step on the server.
+
+1. Create the Docker network for MySQL:
 
 ```bash
 docker network create mysql-network
 ```
 
-Set in `.env`: `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE` (and optionally `MYSQL_PORT`) so the backend can reach your MySQL server on `mysql-network`. Optionally set `APP_PORT` (default 80) for the port the app is served on.
+2. Copy `.env.skel` to `.env` and set in `.env`: `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE` (and optionally `MYSQL_PORT`) so the backend can reach your MySQL server on `mysql-network`. Optionally set `APP_PORT` (default 80) for the port the app is served on.
+
+3. Log in to GHCR (if private) and start:
 
 ```bash
-docker compose up --build
+# If images are private: echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
+docker compose pull
+docker compose up -d
 ```
 
 - Frontend: http://localhost:80 (nginx)
