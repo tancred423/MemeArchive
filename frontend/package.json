@@ -8,8 +8,8 @@
     "preview": "vite preview",
     "lint": "eslint . --ext .vue,.ts,.tsx",
     "lint:fix": "eslint . --ext .vue,.ts,.tsx --fix",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,vue,css,json}\"",
-    "format": "prettier --write \"src/**/*.{ts,tsx,vue,css,json}\"",
+    "format:check": "prettier --config .prettierrc --check .",
+    "format": "prettier --config .prettierrc --write .",
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {

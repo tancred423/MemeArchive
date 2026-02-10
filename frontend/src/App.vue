@@ -49,8 +49,7 @@ function isVideo(path: string): boolean {
 function isSupportedFile(file: File): boolean {
   const ext = fileExt(file.name);
   if (IMAGE_EXTS.includes(ext) || GIF_EXTS.includes(ext) || VIDEO_EXTS.includes(ext)) return true;
-  if (file.type.startsWith("image/") || file.type === "video/mp4" || file.type === "video/webm")
-    return true;
+  if (file.type.startsWith("image/") || file.type === "video/mp4" || file.type === "video/webm") return true;
   return false;
 }
 
@@ -197,9 +196,7 @@ const isMobile =
   /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
   (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
 const defaultCopyMode: CopyMode = isMobile ? "link" : "file";
-const copyMode = ref<CopyMode>(
-  (localStorage.getItem(COPY_MODE_KEY) as CopyMode) || defaultCopyMode,
-);
+const copyMode = ref<CopyMode>((localStorage.getItem(COPY_MODE_KEY) as CopyMode) || defaultCopyMode);
 const showCopyMenu = ref(false);
 
 function setCopyMode(mode: CopyMode) {
@@ -469,8 +466,7 @@ async function handleFileChange(event: Event) {
   const file = input.files?.[0];
   if (!file) return;
   if (!isSupportedFile(file)) {
-    error.value =
-      "Unsupported format. Allowed: PNG, JPG, JPEG, WebP, SVG, BMP, ICO, AVIF, GIF, MP4, WebM";
+    error.value = "Unsupported format. Allowed: PNG, JPG, JPEG, WebP, SVG, BMP, ICO, AVIF, GIF, MP4, WebM";
     return;
   }
   error.value = "";
@@ -555,8 +551,7 @@ async function submitMeme() {
       error.value =
         res.status === 413
           ? "File too large. Try a smaller file or ask the admin to raise the upload limit."
-          : ((data as { error?: string }).error ??
-            (wasEditing ? "Failed to update meme" : "Failed to add meme"));
+          : ((data as { error?: string }).error ?? (wasEditing ? "Failed to update meme" : "Failed to add meme"));
       return;
     }
     closeAddPanel();
@@ -828,7 +823,9 @@ onUnmounted(() => {
             <span
               class="theme-icon"
               aria-hidden="true"
-            >{{ theme === "system" ? "🌗" : theme === "light" ? "🌕" : "🌑" }}</span>
+            >{{
+              theme === "system" ? "🌗" : theme === "light" ? "🌕" : "🌑"
+            }}</span>
             {{ theme === "system" ? "System" : theme === "light" ? "Light" : "Dark" }}
           </button>
           <div
@@ -924,9 +921,7 @@ onUnmounted(() => {
                       class="tag-remove"
                       aria-label="Remove tag"
                       @click="removeTag(i)"
-                    >
-                      ×
-                    </button>
+                    >×</button>
                   </span>
                   <input
                     v-if="tagList.length < 20"
@@ -954,8 +949,7 @@ onUnmounted(() => {
                   <span class="file-sep">or paste anywhere</span>
                 </div>
               </div>
-              <span class="file-hint">Images (PNG, JPG, WebP, SVG…) are converted to PNG. GIF and video (MP4, WebM) kept
-                as-is.</span>
+              <span class="file-hint">Images (PNG, JPG, WebP, SVG…) are converted to PNG. GIF and video (MP4, WebM) kept as-is.</span>
               <div
                 v-if="previewUrl || existingFilePath"
                 class="preview-wrap"
