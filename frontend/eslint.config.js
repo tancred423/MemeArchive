@@ -5,7 +5,7 @@ import pluginVue from "eslint-plugin-vue";
 export default [
   js.configs.recommended,
   ...tseslint.configs.recommended,
-  ...pluginVue.configs["flat/recommended"],
+  ...pluginVue.configs["flat/essential"],
   {
     files: ["**/*.vue"],
     languageOptions: {

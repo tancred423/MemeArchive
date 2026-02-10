@@ -746,28 +746,15 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div
-    class="app"
-    @paste="handlePaste"
-  >
-    <header
-      v-if="isAuthed"
-      class="header"
-    >
+  <div class="app" @paste="handlePaste">
+    <header v-if="isAuthed" class="header">
       <h1 class="logo">
         {{ appName }}
       </h1>
       <div class="header-actions">
-        <div
-          v-if="storageMax > 0"
-          class="storage-indicator"
-        >
+        <div v-if="storageMax > 0" class="storage-indicator">
           <div class="storage-bar">
-            <div
-              class="storage-fill"
-              :class="storageLevel"
-              :style="{ width: storagePercent + '%' }"
-            />
+            <div class="storage-fill" :class="storageLevel" :style="{ width: storagePercent + '%' }" />
           </div>
           <span class="storage-text">{{ formatBytes(storageUsed) }} / {{ formatBytes(storageMax) }}</span>
         </div>
@@ -780,17 +767,10 @@ onUnmounted(() => {
             :aria-expanded="showCopyMenu"
             @click.stop="toggleCopyMenu"
           >
-            <span
-              class="theme-icon"
-              aria-hidden="true"
-            >{{ copyMode === "file" ? "🌄" : "🔗" }}</span>
+            <span class="theme-icon" aria-hidden="true">{{ copyMode === "file" ? "🌄" : "🔗" }}</span>
             {{ copyMode === "file" ? "File" : "Link" }}
           </button>
-          <div
-            v-if="showCopyMenu"
-            class="theme-menu file-menu"
-            role="menu"
-          >
+          <div v-if="showCopyMenu" class="theme-menu file-menu" role="menu">
             <button
               type="button"
               role="menuitem"
@@ -820,19 +800,12 @@ onUnmounted(() => {
             :aria-expanded="showThemeMenu"
             @click.stop="toggleThemeMenu"
           >
-            <span
-              class="theme-icon"
-              aria-hidden="true"
-            >{{
+            <span class="theme-icon" aria-hidden="true">{{
               theme === "system" ? "🌗" : theme === "light" ? "🌕" : "🌑"
             }}</span>
             {{ theme === "system" ? "System" : theme === "light" ? "Light" : "Dark" }}
           </button>
-          <div
-            v-if="showThemeMenu"
-            class="theme-menu"
-            role="menu"
-          >
+          <div v-if="showThemeMenu" class="theme-menu" role="menu">
             <button
               type="button"
               role="menuitem"
@@ -862,66 +835,27 @@ onUnmounted(() => {
             </button>
           </div>
         </div>
-        <button
-          type="button"
-          class="btn btn-ghost"
-          @click="logout"
-        >
-          🚪 Logout
-        </button>
+        <button type="button" class="btn btn-ghost" @click="logout">🚪 Logout</button>
       </div>
     </header>
 
-    <main
-      v-if="isAuthed"
-      class="main"
-    >
+    <main v-if="isAuthed" class="main">
       <Teleport to="body">
-        <div
-          v-if="showAddPanel"
-          class="modal-overlay"
-          @click.self="closeAddPanel"
-          @paste="handlePaste"
-        >
+        <div v-if="showAddPanel" class="modal-overlay" @click.self="closeAddPanel" @paste="handlePaste">
           <div class="modal-panel">
             <div class="add-panel-header">
               <h2 class="panel-title">
                 {{ editingMemeId ? "Edit Meme" : "Add Meme" }}
               </h2>
-              <button
-                type="button"
-                class="btn btn-ghost btn-sm"
-                aria-label="Close"
-                @click="closeAddPanel"
-              >
-                ×
-              </button>
+              <button type="button" class="btn btn-ghost btn-sm" aria-label="Close" @click="closeAddPanel">×</button>
             </div>
-            <form
-              class="add-form"
-              @submit.prevent="submitMeme"
-            >
-              <input
-                v-model="title"
-                type="text"
-                placeholder="Title"
-                maxlength="200"
-                class="input"
-              >
+            <form class="add-form" @submit.prevent="submitMeme">
+              <input v-model="title" type="text" placeholder="Title" maxlength="200" class="input" />
               <div class="tags-wrap">
                 <div class="tag-panels">
-                  <span
-                    v-for="(tag, i) in tagList"
-                    :key="i"
-                    class="tag-panel"
-                  >
+                  <span v-for="(tag, i) in tagList" :key="i" class="tag-panel">
                     {{ tag }}
-                    <button
-                      type="button"
-                      class="tag-remove"
-                      aria-label="Remove tag"
-                      @click="removeTag(i)"
-                    >×</button>
+                    <button type="button" class="tag-remove" aria-label="Remove tag" @click="removeTag(i)">×</button>
                   </span>
                   <input
                     v-if="tagList.length < 20"
@@ -932,32 +866,26 @@ onUnmounted(() => {
                     class="input tag-input"
                     @keydown="onTagInputKeydown"
                     @blur="commitTagInput"
-                  >
+                  />
                 </div>
               </div>
               <div class="file-selector-row">
                 <div class="file-selector">
                   <label class="file-label">
                     <span class="file-text">Choose file</span>
-                    <input
-                      type="file"
-                      :accept="ALL_ACCEPT"
-                      class="file-input"
-                      @change="handleFileChange"
-                    >
+                    <input type="file" :accept="ALL_ACCEPT" class="file-input" @change="handleFileChange" />
                   </label>
                   <span class="file-sep">or paste anywhere</span>
                 </div>
               </div>
-              <span class="file-hint">Images (PNG, JPG, WebP, SVG…) are converted to PNG. GIF and video (MP4, WebM) kept as-is.</span>
-              <div
-                v-if="previewUrl || existingFilePath"
-                class="preview-wrap"
+              <span class="file-hint"
+                >Images (PNG, JPG, WebP, SVG…) are converted to PNG. GIF and video (MP4, WebM) kept as-is.</span
               >
+              <div v-if="previewUrl || existingFilePath" class="preview-wrap">
                 <video
                   v-if="
                     (previewUrl && processedExt && VIDEO_EXTS.includes(processedExt)) ||
-                      (!previewUrl && existingFilePath && isVideo(existingFilePath))
+                    (!previewUrl && existingFilePath && isVideo(existingFilePath))
                   "
                   :src="previewUrl || fileUrl(existingFilePath)"
                   class="preview"
@@ -965,29 +893,14 @@ onUnmounted(() => {
                   muted
                   playsinline
                 />
-                <img
-                  v-else
-                  :src="previewUrl || fileUrl(existingFilePath)"
-                  class="preview"
-                  alt="Preview"
-                >
+                <img v-else :src="previewUrl || fileUrl(existingFilePath)" class="preview" alt="Preview" />
               </div>
-              <button
-                type="submit"
-                class="btn btn-primary btn-submit"
-                :disabled="isSubmitting"
-              >
-                <span
-                  v-if="isSubmitting"
-                  class="spinner"
-                />
+              <button type="submit" class="btn btn-primary btn-submit" :disabled="isSubmitting">
+                <span v-if="isSubmitting" class="spinner" />
                 {{ isSubmitting ? "Uploading…" : editingMemeId ? "Save" : "Add" }}
               </button>
             </form>
-            <p
-              v-if="error"
-              class="error-inline"
-            >
+            <p v-if="error" class="error-inline">
               {{ error }}
             </p>
           </div>
@@ -1003,14 +916,8 @@ onUnmounted(() => {
               placeholder="Search title or tag"
               class="input search-input"
               @keydown="onSearchKeydown"
-            >
-            <button
-              type="button"
-              class="btn-icon"
-              aria-label="Search"
-              @mousedown.prevent
-              @click="runSearch"
-            >
+            />
+            <button type="button" class="btn-icon" aria-label="Search" @mousedown.prevent @click="runSearch">
               <svg
                 class="icon-magnifier"
                 viewBox="0 0 24 24"
@@ -1020,73 +927,29 @@ onUnmounted(() => {
                 stroke-linecap="round"
                 stroke-linejoin="round"
               >
-                <circle
-                  cx="11"
-                  cy="11"
-                  r="8"
-                />
+                <circle cx="11" cy="11" r="8" />
                 <path d="m21 21-4.35-4.35" />
               </svg>
             </button>
           </div>
-          <select
-            v-model="sort"
-            class="select"
-          >
-            <option value="newest">
-              Newest
-            </option>
-            <option value="oldest">
-              Oldest
-            </option>
-            <option value="a-z">
-              A–Z
-            </option>
-            <option value="z-a">
-              Z–A
-            </option>
+          <select v-model="sort" class="select">
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="a-z">A–Z</option>
+            <option value="z-a">Z–A</option>
           </select>
-          <button
-            type="button"
-            class="btn btn-primary"
-            @click="openAddPanel"
-          >
-            Add meme
-          </button>
+          <button type="button" class="btn btn-primary" @click="openAddPanel">Add meme</button>
         </div>
 
-        <div
-          v-if="isLoadingMemes"
-          class="grid-loading"
-        >
+        <div v-if="isLoadingMemes" class="grid-loading">
           <span class="spinner spinner-lg" />
         </div>
-        <div
-          ref="gridRef"
-          class="grid"
-          :class="{ 'grid-dimmed': isLoadingMemes }"
-        >
-          <div
-            v-for="meme in memes"
-            :key="meme.id"
-            class="card"
-            :class="{ copied: copiedId === meme.id }"
-          >
-            <button
-              type="button"
-              class="card-image-btn"
-              @click="copyMeme(meme)"
-            >
+        <div ref="gridRef" class="grid" :class="{ 'grid-dimmed': isLoadingMemes }">
+          <div v-for="meme in memes" :key="meme.id" class="card" :class="{ copied: copiedId === meme.id }">
+            <button type="button" class="card-image-btn" @click="copyMeme(meme)">
               <div class="card-image-wrap">
-                <img
-                  :src="cardImageSrc(meme)"
-                  :alt="meme.title"
-                  class="card-image"
-                >
-                <span
-                  v-if="copiedId === meme.id"
-                  class="card-copied-badge"
-                >{{ getCopiedBadgeText(meme) }}</span>
+                <img :src="cardImageSrc(meme)" :alt="meme.title" class="card-image" />
+                <span v-if="copiedId === meme.id" class="card-copied-badge">{{ getCopiedBadgeText(meme) }}</span>
                 <span class="card-info-badges">
                   <span class="card-badge">{{ formatBytes(meme.fileSize) }}</span>
                   <span class="card-badge">{{ getMemeTypeLabel(meme.filePath) }}</span>
@@ -1095,57 +958,30 @@ onUnmounted(() => {
             </button>
             <div class="card-meta">
               <span class="card-title">{{ meme.title }}</span>
-              <div
-                v-if="memeTagsDisplay(meme)"
-                class="card-tags"
-              >
+              <div v-if="memeTagsDisplay(meme)" class="card-tags">
                 {{ memeTagsDisplay(meme) }}
               </div>
             </div>
             <div class="card-actions">
-              <button
-                type="button"
-                class="btn btn-card"
-                @click.stop="openEditPanel(meme)"
-              >
-                Edit
-              </button>
-              <button
-                type="button"
-                class="btn btn-card btn-danger"
-                @click.stop="deleteMemeConfirm(meme)"
-              >
+              <button type="button" class="btn btn-card" @click.stop="openEditPanel(meme)">Edit</button>
+              <button type="button" class="btn btn-card btn-danger" @click.stop="deleteMemeConfirm(meme)">
                 Delete
               </button>
             </div>
           </div>
         </div>
 
-        <div
-          v-if="totalPages > 1"
-          class="pagination"
-        >
+        <div v-if="totalPages > 1" class="pagination">
           <span class="page-info">
             {{ (page - 1) * pageSize + 1 }}–{{ Math.min(page * pageSize, totalMemes) }} of
             {{ totalMemes }}
           </span>
           <div class="page-controls">
-            <button
-              type="button"
-              class="btn btn-ghost btn-page"
-              :disabled="page <= 1"
-              @click="goToPage(page - 1)"
-            >
+            <button type="button" class="btn btn-ghost btn-page" :disabled="page <= 1" @click="goToPage(page - 1)">
               ‹
             </button>
-            <template
-              v-for="p in paginationPages"
-              :key="p"
-            >
-              <span
-                v-if="p === '...'"
-                class="page-ellipsis"
-              >…</span>
+            <template v-for="p in paginationPages" :key="p">
+              <span v-if="p === '...'" class="page-ellipsis">…</span>
               <button
                 v-else
                 type="button"
@@ -1169,15 +1005,9 @@ onUnmounted(() => {
       </div>
     </main>
 
-    <div
-      v-else
-      class="login-wrap"
-    >
+    <div v-else class="login-wrap">
       <div class="login-card">
-        <form
-          class="login-form"
-          @submit.prevent="submitPassword"
-        >
+        <form class="login-form" @submit.prevent="submitPassword">
           <input
             ref="passwordInputRef"
             v-model="password"
@@ -1185,18 +1015,10 @@ onUnmounted(() => {
             placeholder="Password"
             autocomplete="current-password"
             class="input login-input"
-          >
-          <button
-            type="submit"
-            class="btn btn-primary btn-block"
-          >
-            Enter
-          </button>
+          />
+          <button type="submit" class="btn btn-primary btn-block">Enter</button>
         </form>
-        <p
-          v-if="error"
-          class="error"
-        >
+        <p v-if="error" class="error">
           {{ error }}
         </p>
       </div>

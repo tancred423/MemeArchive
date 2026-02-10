@@ -7,7 +7,7 @@
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext .vue,.ts,.tsx",
-    "lint:fix": "eslint . --ext .vue,.ts,.tsx --fix",
+    "lint:fix": "eslint . --ext .vue,.ts,.tsx --fix --fix-type problem,suggestion",
     "format:check": "prettier --config .prettierrc --check .",
     "format": "prettier --config .prettierrc --write .",
     "typecheck": "vue-tsc --noEmit"
@@ -16,8 +16,8 @@
     "vue": "^3.4.21"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
     "@eslint/js": "^9.0.0",
+    "@types/node": "^22.0.0",
     "@vitejs/plugin-vue": "^5.0.4",
     "eslint": "^9.0.0",
     "eslint-plugin-vue": "^9.26.0",
