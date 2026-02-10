@@ -91,10 +91,19 @@ router.post("/api/memes", async (ctx) => {
   }
   const mediaFile = formData.get("file") as File | null;
   const thumbFile = formData.get("thumbnail") as File | null;
+  const textContent = (formData.get("text_content") as string | null) ?? null;
 
-  if (!title || !mediaFile || mediaFile.size === 0) {
+  if (!title) {
     ctx.response.status = 400;
-    ctx.response.body = { ok: false, error: "Missing title or file" };
+    ctx.response.body = { ok: false, error: "Missing title" };
+    return;
+  }
+
+  const isTextMeme = textContent !== null && textContent.length > 0;
+
+  if (!isTextMeme && (!mediaFile || mediaFile.size === 0)) {
+    ctx.response.status = 400;
+    ctx.response.body = { ok: false, error: "Missing file or text content" };
     return;
   }
 
@@ -120,7 +129,47 @@ router.post("/api/memes", async (ctx) => {
     return;
   }
 
-  const ext = extFromFile(mediaFile);
+  if (isTextMeme && textContent.length > 50000) {
+    ctx.response.status = 400;
+    ctx.response.body = {
+      ok: false,
+      error: "Text content must be 50,000 characters or less",
+    };
+    return;
+  }
+
+  const id = crypto.randomUUID();
+  const createdAt = new Date();
+
+  if (isTextMeme) {
+    await memesDb.insertMeme(
+      id,
+      title,
+      tags,
+      null,
+      null,
+      0,
+      createdAt,
+      textContent,
+    );
+
+    ctx.response.body = {
+      ok: true,
+      item: {
+        id,
+        title,
+        tags,
+        filePath: null,
+        thumbnailPath: null,
+        textContent,
+        fileSize: 0,
+        createdAt: createdAt.getTime(),
+      },
+    };
+    return;
+  }
+
+  const ext = extFromFile(mediaFile!);
   if (!ext) {
     ctx.response.status = 400;
     ctx.response.body = {
@@ -132,13 +181,13 @@ router.post("/api/memes", async (ctx) => {
 
   const used = await storageDb.getStorageUsedBytes();
   const max = storageDb.getMaxStorageBytes();
-  if (used + mediaFile.size > max) {
+  if (used + mediaFile!.size > max) {
     ctx.response.status = 413;
     ctx.response.body = { ok: false, error: "Storage limit exceeded" };
     return;
   }
 
-  const { path: filePath, size: fileSize } = await saveUpload(mediaFile, ext);
+  const { path: filePath, size: fileSize } = await saveUpload(mediaFile!, ext);
   let thumbnailPath: string | null = null;
 
   if (thumbFile && thumbFile.size > 0) {
@@ -150,9 +199,6 @@ router.post("/api/memes", async (ctx) => {
     }
   }
 
-  const id = crypto.randomUUID();
-  const createdAt = new Date();
-
   try {
     await memesDb.insertMeme(
       id,
@@ -162,6 +208,7 @@ router.post("/api/memes", async (ctx) => {
       thumbnailPath,
       fileSize,
       createdAt,
+      null,
     );
   } catch (err) {
     await deleteFile(filePath);
@@ -177,6 +224,7 @@ router.post("/api/memes", async (ctx) => {
       tags,
       filePath,
       thumbnailPath,
+      textContent: null,
       fileSize,
       createdAt: createdAt.getTime(),
     },
@@ -226,6 +274,8 @@ router.put("/api/memes/:id", async (ctx) => {
   }
   const mediaFile = formData.get("file") as File | null;
   const thumbFile = formData.get("thumbnail") as File | null;
+  const textContent = (formData.get("text_content") as string | null) ?? null;
+  const memeType = (formData.get("meme_type") as string | null) ?? "file";
 
   if (!title) {
     ctx.response.status = 400;
@@ -254,6 +304,15 @@ router.put("/api/memes/:id", async (ctx) => {
     return;
   }
 
+  if (textContent && textContent.length > 50000) {
+    ctx.response.status = 400;
+    ctx.response.body = {
+      ok: false,
+      error: "Text content must be 50,000 characters or less",
+    };
+    return;
+  }
+
   const existed = await memesDb.getMemeById(id);
   if (!existed) {
     ctx.response.status = 404;
@@ -261,9 +320,42 @@ router.put("/api/memes/:id", async (ctx) => {
     return;
   }
 
-  let newFilePath: string | undefined;
+  const isTextMeme = memeType === "text";
+
+  if (isTextMeme) {
+    if (!textContent || textContent.length === 0) {
+      ctx.response.status = 400;
+      ctx.response.body = { ok: false, error: "Text content is required" };
+      return;
+    }
+
+    const ok = await memesDb.updateMeme(
+      id,
+      title,
+      tags,
+      null,
+      null,
+      0,
+      textContent,
+    );
+    if (!ok) {
+      ctx.response.status = 500;
+      ctx.response.body = { ok: false, error: "Update failed" };
+      return;
+    }
+
+    if (existed.filePath) await deleteFile(existed.filePath);
+    if (existed.thumbnailPath) await deleteFile(existed.thumbnailPath);
+
+    const row = await memesDb.getMemeById(id);
+    ctx.response.body = { ok: true, item: row ? rowToMeme(row) : null };
+    return;
+  }
+
+  let newFilePath: string | null | undefined;
   let newThumbnailPath: string | null | undefined;
   let newFileSize: number | undefined;
+  let newTextContent: string | null | undefined;
 
   if (mediaFile && mediaFile.size > 0) {
     const ext = extFromFile(mediaFile);
@@ -286,6 +378,7 @@ router.put("/api/memes/:id", async (ctx) => {
     const saved = await saveUpload(mediaFile, ext);
     newFilePath = saved.path;
     newFileSize = saved.size;
+    newTextContent = null;
 
     if (thumbFile && thumbFile.size > 0) {
       try {
@@ -306,6 +399,7 @@ router.put("/api/memes/:id", async (ctx) => {
     newFilePath,
     newThumbnailPath,
     newFileSize,
+    newTextContent,
   );
   if (!ok) {
     if (newFilePath) await deleteFile(newFilePath);

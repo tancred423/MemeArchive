@@ -11,8 +11,9 @@ type Meme = {
   id: string;
   title: string;
   tags: string[];
-  filePath: string;
+  filePath: string | null;
   thumbnailPath: string | null;
+  textContent: string | null;
   fileSize: number;
   createdAt: number;
 };
@@ -33,6 +34,10 @@ const appName = import.meta.env.VITE_APP_NAME || "Meme Archive";
 const isSubmitting = ref(false);
 const isLoadingMemes = ref(false);
 
+type AddMemeTab = "file" | "text";
+const addMemeTab = ref<AddMemeTab>("file");
+const textContent = ref<string>("");
+
 const IMAGE_EXTS = ["png", "jpg", "jpeg", "webp", "svg", "bmp", "ico", "avif"];
 const GIF_EXTS = ["gif", "apng"];
 const VIDEO_EXTS = ["mp4", "webm"];
@@ -44,6 +49,10 @@ function fileExt(name: string): string {
 
 function isVideo(path: string): boolean {
   return VIDEO_EXTS.includes(fileExt(path));
+}
+
+function isTextMeme(meme: Meme): boolean {
+  return meme.textContent !== null && meme.textContent.length > 0;
 }
 
 function isSupportedFile(file: File): boolean {
@@ -479,6 +488,7 @@ async function handleFileChange(event: Event) {
 }
 
 async function handlePaste(event: ClipboardEvent) {
+  if (addMemeTab.value === "text") return;
   const items = event.clipboardData?.items ?? [];
   for (const item of items) {
     if (item.type.startsWith("image/") || item.type.startsWith("video/")) {
@@ -518,27 +528,54 @@ async function submitMeme() {
     error.value = "Each tag must be 200 characters or less";
     return;
   }
-  if (!editingMemeId.value && !imageFile.value) {
-    error.value = "File is required for new meme";
-    return;
+
+  const isText = addMemeTab.value === "text";
+
+  if (isText) {
+    if (!textContent.value || !textContent.value.trim()) {
+      error.value = "Text content is required";
+      return;
+    }
+    if (textContent.value.length > 50000) {
+      error.value = "Text content must be 50,000 characters or less";
+      return;
+    }
+  } else {
+    if (!editingMemeId.value && !imageFile.value) {
+      error.value = "File is required for new meme";
+      return;
+    }
   }
+
   isSubmitting.value = true;
   try {
     const formData = new FormData();
     formData.append("title", title.value.trim());
     formData.append("tags", JSON.stringify(finalTags));
-    if (imageFile.value) {
-      const ext = processedExt.value || "png";
-      formData.append("file", imageFile.value, `upload.${ext}`);
-      if (VIDEO_EXTS.includes(ext)) {
-        try {
-          const thumb = await generateVideoThumbnail(imageFile.value);
-          formData.append("thumbnail", thumb, "thumb.png");
-        } catch {
-          // thumbnail generation is best-effort
+
+    if (isText) {
+      formData.append("text_content", textContent.value);
+      if (editingMemeId.value) {
+        formData.append("meme_type", "text");
+      }
+    } else {
+      if (editingMemeId.value) {
+        formData.append("meme_type", "file");
+      }
+      if (imageFile.value) {
+        const ext = processedExt.value || "png";
+        formData.append("file", imageFile.value, `upload.${ext}`);
+        if (VIDEO_EXTS.includes(ext)) {
+          try {
+            const thumb = await generateVideoThumbnail(imageFile.value);
+            formData.append("thumbnail", thumb, "thumb.png");
+          } catch {
+            // thumbnail generation is best-effort
+          }
         }
       }
     }
+
     const wasEditing = !!editingMemeId.value;
     const url = wasEditing ? `/api/memes/${editingMemeId.value}` : "/api/memes";
     const res = await fetch(url, {
@@ -583,13 +620,23 @@ async function deleteMemeConfirm(meme: Meme) {
 
 async function copyMeme(meme: Meme) {
   copiedId.value = "";
-  const ext = fileExt(meme.filePath);
+
+  if (isTextMeme(meme)) {
+    await navigator.clipboard.writeText(meme.textContent!);
+    copiedId.value = meme.id;
+    setTimeout(() => {
+      if (copiedId.value === meme.id) copiedId.value = "";
+    }, 1000);
+    return;
+  }
+
+  const ext = fileExt(meme.filePath!);
   const isVid = VIDEO_EXTS.includes(ext);
   const isGifFile = ext === "gif";
   const mustCopyLink = isVid || isGifFile;
 
   if (copyMode.value === "link" || mustCopyLink) {
-    const fullUrl = window.location.origin + fileUrl(meme.filePath);
+    const fullUrl = window.location.origin + fileUrl(meme.filePath!);
     await navigator.clipboard.writeText(fullUrl);
   } else {
     const img = new Image();
@@ -597,7 +644,7 @@ async function copyMeme(meme: Meme) {
     await new Promise<void>((resolve, reject) => {
       img.onload = () => resolve();
       img.onerror = () => reject(new Error("Failed to load image"));
-      img.src = fileUrl(meme.filePath);
+      img.src = fileUrl(meme.filePath!);
     });
     const canvas = document.createElement("canvas");
     canvas.width = img.naturalWidth;
@@ -619,7 +666,8 @@ async function copyMeme(meme: Meme) {
 }
 
 function getCopiedBadgeText(meme: Meme): string {
-  const ext = fileExt(meme.filePath);
+  if (isTextMeme(meme)) return "Text copied";
+  const ext = fileExt(meme.filePath!);
   const isVid = VIDEO_EXTS.includes(ext);
   const isGifFile = ext === "gif";
   if (copyMode.value === "link" || isVid || isGifFile) return "Link copied";
@@ -648,6 +696,8 @@ function openAddPanel() {
   processedExt.value = "";
   revokePreview();
   existingFilePath.value = "";
+  addMemeTab.value = "file";
+  textContent.value = "";
   error.value = "";
   showAddPanel.value = true;
 }
@@ -659,7 +709,15 @@ function openEditPanel(meme: Meme) {
   imageFile.value = null;
   processedExt.value = "";
   revokePreview();
-  existingFilePath.value = meme.filePath;
+  if (isTextMeme(meme)) {
+    addMemeTab.value = "text";
+    textContent.value = meme.textContent!;
+    existingFilePath.value = "";
+  } else {
+    addMemeTab.value = "file";
+    textContent.value = "";
+    existingFilePath.value = meme.filePath ?? "";
+  }
   error.value = "";
   showAddPanel.value = true;
 }
@@ -673,6 +731,8 @@ function closeAddPanel() {
   processedExt.value = "";
   revokePreview();
   existingFilePath.value = "";
+  addMemeTab.value = "file";
+  textContent.value = "";
   error.value = "";
 }
 
@@ -690,12 +750,14 @@ function memeTagsDisplay(meme: Meme): string {
   return "";
 }
 
-function getMemeTypeLabel(path: string): string {
+function getMemeTypeLabel(path: string | null): string {
+  if (!path) return "TEXT";
   const ext = path.split(".").pop() || "unknown";
   return ext.toUpperCase();
 }
 
 function cardImageSrc(meme: Meme): string {
+  if (!meme.filePath) return "";
   if (isVideo(meme.filePath) && meme.thumbnailPath) {
     return fileUrl(meme.thumbnailPath);
   }
@@ -869,35 +931,75 @@ onUnmounted(() => {
                   />
                 </div>
               </div>
-              <div class="file-selector-row">
-                <div class="file-selector">
-                  <label class="file-label">
-                    <span class="file-text">Choose file</span>
-                    <input type="file" :accept="ALL_ACCEPT" class="file-input" @change="handleFileChange" />
-                  </label>
-                  <span class="file-sep">or paste anywhere</span>
+              <div class="meme-type-tabs">
+                <button
+                  type="button"
+                  class="meme-tab"
+                  :class="{ active: addMemeTab === 'file' }"
+                  @click="addMemeTab = 'file'"
+                >
+                  File
+                </button>
+                <button
+                  type="button"
+                  class="meme-tab"
+                  :class="{ active: addMemeTab === 'text' }"
+                  @click="addMemeTab = 'text'"
+                >
+                  Text
+                </button>
+              </div>
+
+              <template v-if="addMemeTab === 'file'">
+                <div class="file-selector-row">
+                  <div class="file-selector">
+                    <label class="file-label">
+                      <span class="file-text">Choose file</span>
+                      <input type="file" :accept="ALL_ACCEPT" class="file-input" @change="handleFileChange" />
+                    </label>
+                    <span class="file-sep">or paste anywhere</span>
+                  </div>
                 </div>
-              </div>
-              <span class="file-hint"
-                >Images (PNG, JPG, WebP, SVG…) are converted to PNG. GIF and video (MP4, WebM) kept as-is.</span
-              >
-              <div v-if="previewUrl || existingFilePath" class="preview-wrap">
-                <video
-                  v-if="
-                    (previewUrl && processedExt && VIDEO_EXTS.includes(processedExt)) ||
-                    (!previewUrl && existingFilePath && isVideo(existingFilePath))
-                  "
-                  :src="previewUrl || fileUrl(existingFilePath)"
-                  class="preview"
-                  controls
-                  muted
-                  playsinline
+                <span class="file-hint"
+                  >Images (PNG, JPG, WebP, SVG…) are converted to PNG. GIF and video (MP4, WebM) kept as-is.</span
+                >
+                <div v-if="previewUrl || existingFilePath" class="preview-wrap">
+                  <video
+                    v-if="
+                      (previewUrl && processedExt && VIDEO_EXTS.includes(processedExt)) ||
+                      (!previewUrl && existingFilePath && isVideo(existingFilePath))
+                    "
+                    :src="previewUrl || fileUrl(existingFilePath)"
+                    class="preview"
+                    controls
+                    muted
+                    playsinline
+                  />
+                  <img v-else :src="previewUrl || fileUrl(existingFilePath)" class="preview" alt="Preview" />
+                </div>
+              </template>
+
+              <template v-else>
+                <textarea
+                  v-model="textContent"
+                  class="input text-meme-input"
+                  placeholder="Paste your text meme / ASCII art here…"
+                  rows="12"
+                  spellcheck="false"
+                  autocorrect="off"
+                  autocapitalize="off"
                 />
-                <img v-else :src="previewUrl || fileUrl(existingFilePath)" class="preview" alt="Preview" />
-              </div>
+                <span class="file-hint"
+                  >This might look different to how it looks in Discord, but your input is not altered so it should work
+                  just fine.</span
+                >
+                <div v-if="textContent" class="text-meme-preview-wrap">
+                  <pre class="text-meme-preview">{{ textContent }}</pre>
+                </div>
+              </template>
               <button type="submit" class="btn btn-primary btn-submit" :disabled="isSubmitting">
                 <span v-if="isSubmitting" class="spinner" />
-                {{ isSubmitting ? "Uploading…" : editingMemeId ? "Save" : "Add" }}
+                {{ isSubmitting ? (addMemeTab === "text" ? "Saving…" : "Uploading…") : editingMemeId ? "Save" : "Add" }}
               </button>
             </form>
             <p v-if="error" class="error-inline">
@@ -947,7 +1049,14 @@ onUnmounted(() => {
         <div ref="gridRef" class="grid" :class="{ 'grid-dimmed': isLoadingMemes }">
           <div v-for="meme in memes" :key="meme.id" class="card" :class="{ copied: copiedId === meme.id }">
             <button type="button" class="card-image-btn" @click="copyMeme(meme)">
-              <div class="card-image-wrap">
+              <div v-if="isTextMeme(meme)" class="card-text-wrap">
+                <pre class="card-text-content">{{ meme.textContent }}</pre>
+                <span v-if="copiedId === meme.id" class="card-copied-badge">{{ getCopiedBadgeText(meme) }}</span>
+                <span class="card-info-badges">
+                  <span class="card-badge">TEXT</span>
+                </span>
+              </div>
+              <div v-else class="card-image-wrap">
                 <img :src="cardImageSrc(meme)" :alt="meme.title" class="card-image" />
                 <span v-if="copiedId === meme.id" class="card-copied-badge">{{ getCopiedBadgeText(meme) }}</span>
                 <span class="card-info-badges">
@@ -1422,6 +1531,97 @@ onUnmounted(() => {
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
 }
+/* ─── Meme Type Tabs ─── */
+.meme-type-tabs {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.meme-tab {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  border: none;
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    color 0.2s;
+  width: 100%;
+}
+.meme-tab:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
+.meme-tab:hover {
+  color: var(--text);
+  background: var(--bg-card);
+}
+.meme-tab.active {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* ─── Text Meme Input ─── */
+.text-meme-input {
+  font-family: "Courier New", Courier, "Liberation Mono", monospace;
+  font-size: 0.85rem;
+  line-height: 1.3;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+  resize: vertical;
+  min-height: 140px;
+  tab-size: 4;
+}
+
+/* ─── Text Meme Preview (in form) ─── */
+.text-meme-preview-wrap {
+  margin-top: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  padding: 1rem;
+  overflow: auto;
+  max-height: 240px;
+}
+.text-meme-preview {
+  font-family: "Courier New", Courier, "Liberation Mono", monospace;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  color: #e2e8f0;
+  margin: 0;
+  white-space: pre;
+  overflow-wrap: normal;
+}
+
+/* ─── Text Meme Card ─── */
+.card-text-wrap {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #1a1a2e 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem;
+}
+.card-text-content {
+  font-family: "Courier New", Courier, "Liberation Mono", monospace;
+  font-size: 0.45rem;
+  line-height: 1.1;
+  color: #e2e8f0;
+  white-space: pre;
+  margin: 0;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  text-align: left;
+  pointer-events: none;
+}
+
 .search-input {
   max-width: 320px;
 }
@@ -1813,6 +2013,13 @@ onUnmounted(() => {
   }
   .preview {
     max-width: 100%;
+  }
+  .card-text-content {
+    font-size: 0.35rem;
+    line-height: 1.05;
+  }
+  .card-text-wrap {
+    padding: 0.4rem;
   }
   .storage-bar {
     width: 60px;

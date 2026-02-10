@@ -5,8 +5,9 @@ export type Meme = {
   id: string;
   title: string;
   tags: string[];
-  filePath: string;
+  filePath: string | null;
   thumbnailPath: string | null;
+  textContent: string | null;
   fileSize: number;
   createdAt: number;
 };
@@ -43,8 +44,9 @@ export function rowToMeme(row: MemeRow): Meme {
     id: row.id,
     title: row.title,
     tags: parseTags(row.tags),
-    filePath: row.filePath,
+    filePath: row.filePath ?? null,
     thumbnailPath: row.thumbnailPath ?? null,
+    textContent: row.textContent ?? null,
     fileSize: row.fileSize,
     createdAt: new Date(row.createdAt).getTime(),
   };

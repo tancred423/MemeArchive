@@ -8,10 +8,11 @@ export async function insertMeme(
   id: string,
   title: string,
   tags: string[],
-  filePath: string,
+  filePath: string | null,
   thumbnailPath: string | null,
   fileSize: number,
   createdAt: Date,
+  textContent?: string | null,
 ): Promise<void> {
   await getDb().insert(memes).values({
     id,
@@ -21,6 +22,7 @@ export async function insertMeme(
     thumbnailPath,
     fileSize,
     createdAt,
+    textContent: textContent ?? null,
   });
 }
 
@@ -39,6 +41,7 @@ export async function listMemes(
       return or(
         like(memes.title, pattern),
         sql`LOWER(${memes.tags}) LIKE LOWER(${pattern})`,
+        like(memes.textContent, pattern),
       );
     })()
     : undefined;
@@ -86,14 +89,16 @@ export async function updateMeme(
   id: string,
   title: string,
   tags: string[],
-  filePath?: string,
+  filePath?: string | null,
   thumbnailPath?: string | null,
   fileSize?: number,
+  textContent?: string | null,
 ): Promise<boolean> {
   const set: Record<string, unknown> = { title, tags };
   if (filePath !== undefined) set.filePath = filePath;
   if (thumbnailPath !== undefined) set.thumbnailPath = thumbnailPath;
   if (fileSize !== undefined) set.fileSize = fileSize;
+  if (textContent !== undefined) set.textContent = textContent;
   const result = await getDb()
     .update(memes)
     .set(set)
