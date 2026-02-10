@@ -40,7 +40,9 @@ jobs:
 
       - name: "Frontend: Prettier (check)"
         working-directory: frontend
-        run: npm run format:check
+        run: |
+          npm run format:check
+          git diff --exit-code .
 
       - name: "Frontend: ESLint"
         working-directory: frontend
