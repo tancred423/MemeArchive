@@ -193,7 +193,13 @@ function toggleThemeMenu() {
 
 const COPY_MODE_KEY = "meme_archive_copy_mode";
 type CopyMode = "file" | "link";
-const copyMode = ref<CopyMode>((localStorage.getItem(COPY_MODE_KEY) as CopyMode) || "file");
+const isMobile =
+  /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+  (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+const defaultCopyMode: CopyMode = isMobile ? "link" : "file";
+const copyMode = ref<CopyMode>(
+  (localStorage.getItem(COPY_MODE_KEY) as CopyMode) || defaultCopyMode,
+);
 const showCopyMenu = ref(false);
 
 function setCopyMode(mode: CopyMode) {

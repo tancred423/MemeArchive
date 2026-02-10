@@ -53,7 +53,10 @@ app.use(async (ctx, next) => {
 app.use(async (ctx, next) => {
   const path = ctx.request.url.pathname;
   if (!path.startsWith("/api")) return await next();
-  if (path === "/api" || path.startsWith("/api/auth") || path.startsWith("/api/files/")) return await next();
+  if (
+    path === "/api" || path.startsWith("/api/auth") ||
+    path.startsWith("/api/files/")
+  ) return await next();
 
   const raw = getAuthToken(ctx) ?? (await ctx.cookies.get("guest_auth"));
   const token = raw && UUID_RE.test(raw) ? raw : null;
