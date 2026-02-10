@@ -11,6 +11,7 @@ services:
     env_file:
       - .env
     networks:
+      - default
       - mysql-network
 
   frontend:
