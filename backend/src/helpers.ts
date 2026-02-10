@@ -5,7 +5,9 @@ export type Meme = {
   id: string;
   title: string;
   tags: string[];
-  imageDataUrl: string;
+  filePath: string;
+  thumbnailPath: string | null;
+  fileSize: number;
   createdAt: number;
 };
 
@@ -41,7 +43,21 @@ export function rowToMeme(row: MemeRow): Meme {
     id: row.id,
     title: row.title,
     tags: parseTags(row.tags),
-    imageDataUrl: row.imageDataUrl,
+    filePath: row.filePath,
+    thumbnailPath: row.thumbnailPath ?? null,
+    fileSize: row.fileSize,
     createdAt: new Date(row.createdAt).getTime(),
   };
+}
+
+const EXT_TO_MIME: Record<string, string> = {
+  png: "image/png",
+  gif: "image/gif",
+  mp4: "video/mp4",
+  webm: "video/webm",
+};
+
+export function mimeFromPath(filePath: string): string {
+  const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+  return EXT_TO_MIME[ext] ?? "application/octet-stream";
 }

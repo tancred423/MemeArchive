@@ -5,7 +5,7 @@ import { getDb } from "./connection.ts";
 export async function getStorageUsedBytes(): Promise<number> {
   const result = await getDb()
     .select({
-      total: sql<number>`COALESCE(SUM(LENGTH(${memes.imageDataUrl})), 0)`,
+      total: sql<number>`COALESCE(SUM(${memes.fileSize}), 0)`,
     })
     .from(memes);
   return Number(result[0]?.total ?? 0);

@@ -3,12 +3,14 @@ services:
     image: ${BACKEND_IMAGE:-ghcr.io/tancred423/memearchive/backend:latest}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - meme_archive_uploads:/data/uploads
     environment:
       - PORT=8000
+      - UPLOAD_DIR=/data/uploads
     env_file:
       - .env
     networks:
-      - default
       - mysql-network
 
   frontend:
@@ -17,6 +19,9 @@ services:
       - "${APP_PORT:-80}:80"
     depends_on:
       - backend
+
+volumes:
+  meme_archive_uploads:
 
 networks:
   mysql-network:

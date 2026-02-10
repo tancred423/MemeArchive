@@ -1,8 +1,10 @@
 CREATE TABLE IF NOT EXISTS `memes` (
 	`id` varchar(36) NOT NULL,
-	`title` varchar(500) NOT NULL,
+	`title` varchar(200) NOT NULL,
 	`tags` json NOT NULL,
-	`image_data_url` longtext NOT NULL,
+	`file_path` varchar(500) NOT NULL,
+	`thumbnail_path` varchar(500),
+	`file_size` int NOT NULL DEFAULT 0,
 	`created_at` datetime(3) NOT NULL,
 	CONSTRAINT `memes_id` PRIMARY KEY(`id`)
 );

@@ -8,14 +8,18 @@ export async function insertMeme(
   id: string,
   title: string,
   tags: string[],
-  imageDataUrl: string,
+  filePath: string,
+  thumbnailPath: string | null,
+  fileSize: number,
   createdAt: Date,
 ): Promise<void> {
   await getDb().insert(memes).values({
     id,
     title,
     tags,
-    imageDataUrl,
+    filePath,
+    thumbnailPath,
+    fileSize,
     createdAt,
   });
 }
@@ -82,11 +86,17 @@ export async function updateMeme(
   id: string,
   title: string,
   tags: string[],
-  imageDataUrl: string,
+  filePath?: string,
+  thumbnailPath?: string | null,
+  fileSize?: number,
 ): Promise<boolean> {
+  const set: Record<string, unknown> = { title, tags };
+  if (filePath !== undefined) set.filePath = filePath;
+  if (thumbnailPath !== undefined) set.thumbnailPath = thumbnailPath;
+  if (fileSize !== undefined) set.fileSize = fileSize;
   const result = await getDb()
     .update(memes)
-    .set({ title, tags, imageDataUrl })
+    .set(set)
     .where(eq(memes.id, id));
   return (result[0] as unknown as { affectedRows: number }).affectedRows > 0;
 }

@@ -9,12 +9,14 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-devroot}
     ports:
       - "3306:3306"
+    volumes:
+      - meme_archive_mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD || exit 1"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p\"$$MYSQL_ROOT_PASSWORD\" || exit 1"]
       interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
 
   phpmyadmin:
     image: phpmyadmin:latest
@@ -37,6 +39,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+      - meme_archive_uploads:/data/uploads
     environment:
       - PORT=8000
       - MYSQL_HOST=db
@@ -44,6 +47,7 @@ services:
       - MYSQL_USER=${MYSQL_USER:-meme}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD:-devroot}
       - MYSQL_DATABASE=${MYSQL_DATABASE:-meme_archive}
+      - UPLOAD_DIR=/data/uploads
     env_file:
       - .env
     depends_on:
@@ -66,3 +70,7 @@ services:
       - VITE_API_PROXY_TARGET=http://backend:8000
     env_file:
       - .env
+
+volumes:
+  meme_archive_mysql_data:
+  meme_archive_uploads:

@@ -11,21 +11,92 @@ type Meme = {
   id: string;
   title: string;
   tags: string[];
-  imageDataUrl: string;
+  filePath: string;
+  thumbnailPath: string | null;
+  fileSize: number;
   createdAt: number;
 };
 
 const title = ref<string>("");
 const tagList = ref<string[]>([]);
 const tagInput = ref<string>("");
-const imageDataUrl = ref<string>("");
+const imageFile = ref<File | Blob | null>(null);
+const previewUrl = ref<string>("");
+const existingFilePath = ref<string>("");
 const memes = ref<Meme[]>([]);
 const search = ref<string>("");
-const sort = ref<string>("newest");
+const sort = ref<string>(sessionStorage.getItem("meme_archive_sort") || "newest");
 const copiedId = ref<string>("");
 const showAddPanel = ref<boolean>(false);
 const editingMemeId = ref<string | null>(null);
 const appName = import.meta.env.VITE_APP_NAME || "Meme Archive";
+const isSubmitting = ref(false);
+const isLoadingMemes = ref(false);
+
+const IMAGE_EXTS = ["png", "jpg", "jpeg", "webp", "svg", "bmp", "ico", "avif"];
+const GIF_EXTS = ["gif", "apng"];
+const VIDEO_EXTS = ["mp4", "webm"];
+const ALL_ACCEPT = "image/*,video/mp4,video/webm,.mp4,.webm";
+
+function fileExt(name: string): string {
+  return (name.split(".").pop() || "").toLowerCase();
+}
+
+function isVideo(path: string): boolean {
+  return VIDEO_EXTS.includes(fileExt(path));
+}
+
+function isSupportedFile(file: File): boolean {
+  const ext = fileExt(file.name);
+  if (IMAGE_EXTS.includes(ext) || GIF_EXTS.includes(ext) || VIDEO_EXTS.includes(ext)) return true;
+  if (file.type.startsWith("image/") || file.type === "video/mp4" || file.type === "video/webm")
+    return true;
+  return false;
+}
+
+async function convertToPng(file: File | Blob): Promise<Blob> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("Failed to load image for conversion"));
+      img.src = url;
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(img, 0, 0);
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((b) => {
+        if (b) resolve(b);
+        else reject(new Error("PNG conversion failed"));
+      }, "image/png");
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function processFile(file: File): Promise<{ blob: File | Blob; ext: string }> {
+  const ext = fileExt(file.name);
+  if (ext === "gif") {
+    return { blob: file, ext: "gif" };
+  }
+  if (VIDEO_EXTS.includes(ext) || file.type === "video/mp4" || file.type === "video/webm") {
+    const vExt = ext === "webm" || file.type === "video/webm" ? "webm" : "mp4";
+    return { blob: file, ext: vExt };
+  }
+  if (IMAGE_EXTS.includes(ext) || file.type.startsWith("image/")) {
+    if (ext === "png" && file.type === "image/png") {
+      return { blob: file, ext: "png" };
+    }
+    const pngBlob = await convertToPng(file);
+    return { blob: pngBlob, ext: "png" };
+  }
+  throw new Error("Unsupported format");
+}
 
 // Pagination
 const page = ref(1);
@@ -120,6 +191,77 @@ function toggleThemeMenu() {
   }
 }
 
+const COPY_MODE_KEY = "meme_archive_copy_mode";
+type CopyMode = "file" | "link";
+const copyMode = ref<CopyMode>((localStorage.getItem(COPY_MODE_KEY) as CopyMode) || "file");
+const showCopyMenu = ref(false);
+
+function setCopyMode(mode: CopyMode) {
+  copyMode.value = mode;
+  localStorage.setItem(COPY_MODE_KEY, mode);
+  showCopyMenu.value = false;
+  document.removeEventListener("click", closeCopyMenu);
+}
+function closeCopyMenu() {
+  showCopyMenu.value = false;
+  document.removeEventListener("click", closeCopyMenu);
+}
+function toggleCopyMenu() {
+  showCopyMenu.value = !showCopyMenu.value;
+  if (showCopyMenu.value) {
+    setTimeout(() => document.addEventListener("click", closeCopyMenu), 0);
+  } else {
+    document.removeEventListener("click", closeCopyMenu);
+  }
+}
+
+const THUMB_MAX_DIM = 480;
+const THUMB_QUALITY = 0.8;
+
+async function generateVideoThumbnail(file: File | Blob): Promise<Blob> {
+  const url = URL.createObjectURL(file);
+  try {
+    const video = document.createElement("video");
+    video.preload = "auto";
+    video.muted = true;
+    video.playsInline = true;
+    await new Promise<void>((resolve, reject) => {
+      video.onloadeddata = () => resolve();
+      video.onerror = () => reject(new Error("Failed to load video"));
+      video.src = url;
+    });
+    const seekTime = Math.min(1, video.duration * 0.1);
+    video.currentTime = seekTime;
+    await new Promise<void>((resolve) => {
+      video.onseeked = () => resolve();
+    });
+    let w = video.videoWidth;
+    let h = video.videoHeight;
+    if (w > THUMB_MAX_DIM || h > THUMB_MAX_DIM) {
+      const scale = THUMB_MAX_DIM / Math.max(w, h);
+      w = Math.round(w * scale);
+      h = Math.round(h * scale);
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(video, 0, 0, w, h);
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (b) => {
+          if (b) resolve(b);
+          else reject(new Error("Thumbnail generation failed"));
+        },
+        "image/jpeg",
+        THUMB_QUALITY,
+      );
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 // Auth helpers
 function getAuthHeaders(): Record<string, string> {
   const token = sessionStorage.getItem(TOKEN_KEY);
@@ -148,18 +290,23 @@ async function logout() {
 
 // Data loading
 async function loadMemes() {
-  const params = new URLSearchParams();
-  if (search.value.trim()) params.set("search", search.value.trim());
-  if (sort.value) params.set("sort", sort.value);
-  params.set("page", String(page.value));
-  params.set("limit", String(pageSize.value));
-  const res = await fetch(`/api/memes?${params.toString()}`, {
-    headers: getAuthHeaders(),
-  });
-  if (!res.ok) throw new Error("Failed to load");
-  const data = await res.json();
-  memes.value = Array.isArray(data.items) ? data.items : [];
-  totalMemes.value = data.total ?? 0;
+  isLoadingMemes.value = true;
+  try {
+    const params = new URLSearchParams();
+    if (search.value.trim()) params.set("search", search.value.trim());
+    if (sort.value) params.set("sort", sort.value);
+    params.set("page", String(page.value));
+    params.set("limit", String(pageSize.value));
+    const res = await fetch(`/api/memes?${params.toString()}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error("Failed to load");
+    const data = await res.json();
+    memes.value = Array.isArray(data.items) ? data.items : [];
+    totalMemes.value = data.total ?? 0;
+  } finally {
+    isLoadingMemes.value = false;
+  }
 }
 
 async function loadStorage() {
@@ -291,27 +438,58 @@ function getTagsForSubmit(): string[] {
 }
 
 // File handling
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error("Failed to read file"));
-    reader.readAsDataURL(file);
-  });
+function fileUrl(path: string): string {
+  return `/api/files/${path}`;
 }
+
+const processedExt = ref<string>("");
+
+function setImageFile(file: File | Blob, ext?: string) {
+  revokePreview();
+  imageFile.value = file;
+  previewUrl.value = URL.createObjectURL(file);
+  if (ext) processedExt.value = ext;
+}
+
+function revokePreview() {
+  if (previewUrl.value) {
+    URL.revokeObjectURL(previewUrl.value);
+    previewUrl.value = "";
+  }
+}
+
 async function handleFileChange(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   if (!file) return;
-  imageDataUrl.value = await readFileAsDataUrl(file);
+  if (!isSupportedFile(file)) {
+    error.value =
+      "Unsupported format. Allowed: PNG, JPG, JPEG, WebP, SVG, BMP, ICO, AVIF, GIF, MP4, WebM";
+    return;
+  }
+  error.value = "";
+  try {
+    const { blob, ext } = await processFile(file);
+    setImageFile(blob, ext);
+  } catch {
+    error.value = "Failed to process file";
+  }
 }
+
 async function handlePaste(event: ClipboardEvent) {
   const items = event.clipboardData?.items ?? [];
   for (const item of items) {
-    if (item.type.startsWith("image/")) {
+    if (item.type.startsWith("image/") || item.type.startsWith("video/")) {
       const file = item.getAsFile();
       if (file) {
-        imageDataUrl.value = await readFileAsDataUrl(file);
+        if (!isSupportedFile(file)) continue;
+        error.value = "";
+        try {
+          const { blob, ext } = await processFile(file);
+          setImageFile(blob, ext);
+        } catch {
+          error.value = "Failed to process pasted file";
+        }
         return;
       }
     }
@@ -325,50 +503,63 @@ async function submitMeme() {
     error.value = "Title is required";
     return;
   }
-  if (!editingMemeId.value && !imageDataUrl.value) {
-    error.value = "Image is required for new meme";
+  if (title.value.trim().length > 200) {
+    error.value = "Title must be 200 characters or less";
     return;
   }
-  const payload = {
-    title: title.value.trim(),
-    tags: getTagsForSubmit(),
-    imageDataUrl: imageDataUrl.value || undefined,
-  };
-  const wasEditing = !!editingMemeId.value;
-  if (wasEditing) {
-    const res = await fetch(`/api/memes/${editingMemeId.value}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      error.value =
-        res.status === 413
-          ? "Image too large. Try a smaller image or ask the admin to raise the upload limit."
-          : ((data as { error?: string }).error ?? "Failed to update meme");
-      return;
-    }
-  } else {
-    if (!imageDataUrl.value) return;
-    const res = await fetch("/api/memes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-      body: JSON.stringify({ ...payload, imageDataUrl: imageDataUrl.value }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      error.value =
-        res.status === 413
-          ? "Image too large. Try a smaller image or ask the admin to raise the upload limit."
-          : ((data as { error?: string }).error ?? "Failed to add meme");
-      return;
-    }
+  const finalTags = getTagsForSubmit();
+  if (finalTags.length > 20) {
+    error.value = "Maximum 20 tags allowed";
+    return;
   }
-  closeAddPanel();
-  if (!wasEditing) page.value = 1;
-  await loadMemes();
-  await loadStorage();
+  if (finalTags.some((t: string) => t.length > 200)) {
+    error.value = "Each tag must be 200 characters or less";
+    return;
+  }
+  if (!editingMemeId.value && !imageFile.value) {
+    error.value = "File is required for new meme";
+    return;
+  }
+  isSubmitting.value = true;
+  try {
+    const formData = new FormData();
+    formData.append("title", title.value.trim());
+    formData.append("tags", JSON.stringify(finalTags));
+    if (imageFile.value) {
+      const ext = processedExt.value || "png";
+      formData.append("file", imageFile.value, `upload.${ext}`);
+      if (VIDEO_EXTS.includes(ext)) {
+        try {
+          const thumb = await generateVideoThumbnail(imageFile.value);
+          formData.append("thumbnail", thumb, "thumb.png");
+        } catch {
+          // thumbnail generation is best-effort
+        }
+      }
+    }
+    const wasEditing = !!editingMemeId.value;
+    const url = wasEditing ? `/api/memes/${editingMemeId.value}` : "/api/memes";
+    const res = await fetch(url, {
+      method: wasEditing ? "PUT" : "POST",
+      headers: getAuthHeaders(),
+      body: formData,
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      error.value =
+        res.status === 413
+          ? "File too large. Try a smaller file or ask the admin to raise the upload limit."
+          : ((data as { error?: string }).error ??
+            (wasEditing ? "Failed to update meme" : "Failed to add meme"));
+      return;
+    }
+    closeAddPanel();
+    if (!wasEditing) page.value = 1;
+    await loadMemes();
+    await loadStorage();
+  } finally {
+    isSubmitting.value = false;
+  }
 }
 
 async function deleteMemeConfirm(meme: Meme) {
@@ -389,15 +580,49 @@ async function deleteMemeConfirm(meme: Meme) {
   await loadStorage();
 }
 
-async function copyImage(meme: Meme) {
+async function copyMeme(meme: Meme) {
   copiedId.value = "";
-  const response = await fetch(meme.imageDataUrl);
-  const blob = await response.blob();
-  await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+  const ext = fileExt(meme.filePath);
+  const isVid = VIDEO_EXTS.includes(ext);
+  const isGifFile = ext === "gif";
+  const mustCopyLink = isVid || isGifFile;
+
+  if (copyMode.value === "link" || mustCopyLink) {
+    const fullUrl = window.location.origin + fileUrl(meme.filePath);
+    await navigator.clipboard.writeText(fullUrl);
+  } else {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("Failed to load image"));
+      img.src = fileUrl(meme.filePath);
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(img, 0, 0);
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((b) => {
+        if (b) resolve(b);
+        else reject(new Error("Failed to convert to PNG"));
+      }, "image/png");
+    });
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+  }
   copiedId.value = meme.id;
   setTimeout(() => {
     if (copiedId.value === meme.id) copiedId.value = "";
   }, 1000);
+}
+
+function getCopiedBadgeText(meme: Meme): string {
+  const ext = fileExt(meme.filePath);
+  const isVid = VIDEO_EXTS.includes(ext);
+  const isGifFile = ext === "gif";
+  if (copyMode.value === "link" || isVid || isGifFile) return "Link copied";
+  return "File copied";
 }
 
 // Search / sort
@@ -418,7 +643,10 @@ function openAddPanel() {
   title.value = "";
   tagList.value = [];
   tagInput.value = "";
-  imageDataUrl.value = "";
+  imageFile.value = null;
+  processedExt.value = "";
+  revokePreview();
+  existingFilePath.value = "";
   error.value = "";
   showAddPanel.value = true;
 }
@@ -427,7 +655,10 @@ function openEditPanel(meme: Meme) {
   title.value = meme.title;
   tagList.value = [...(Array.isArray(meme.tags) ? meme.tags : [])];
   tagInput.value = "";
-  imageDataUrl.value = meme.imageDataUrl;
+  imageFile.value = null;
+  processedExt.value = "";
+  revokePreview();
+  existingFilePath.value = meme.filePath;
   error.value = "";
   showAddPanel.value = true;
 }
@@ -437,7 +668,10 @@ function closeAddPanel() {
   title.value = "";
   tagList.value = [];
   tagInput.value = "";
-  imageDataUrl.value = "";
+  imageFile.value = null;
+  processedExt.value = "";
+  revokePreview();
+  existingFilePath.value = "";
   error.value = "";
 }
 
@@ -455,11 +689,24 @@ function memeTagsDisplay(meme: Meme): string {
   return "";
 }
 
+function getMemeTypeLabel(path: string): string {
+  const ext = path.split(".").pop() || "unknown";
+  return ext.toUpperCase();
+}
+
+function cardImageSrc(meme: Meme): string {
+  if (isVideo(meme.filePath) && meme.thumbnailPath) {
+    return fileUrl(meme.thumbnailPath);
+  }
+  return fileUrl(meme.filePath);
+}
+
 function onEscape(e: KeyboardEvent) {
   if (e.key === "Escape" && showAddPanel.value) closeAddPanel();
 }
 
 watch(sort, () => {
+  sessionStorage.setItem("meme_archive_sort", sort.value);
   page.value = 1;
   if (isAuthed.value) loadMemes();
 });
@@ -493,6 +740,7 @@ onUnmounted(() => {
   themeMedia?.removeEventListener("change", onSystemThemeChange);
   resizeObserver?.disconnect();
   if (resizeTimeout) clearTimeout(resizeTimeout);
+  revokePreview();
 });
 </script>
 
@@ -526,6 +774,46 @@ onUnmounted(() => {
           <button
             type="button"
             class="btn btn-ghost btn-icon-text"
+            aria-label="Copy mode"
+            aria-haspopup="true"
+            :aria-expanded="showCopyMenu"
+            @click.stop="toggleCopyMenu"
+          >
+            <span
+              class="theme-icon"
+              aria-hidden="true"
+            >{{ copyMode === "file" ? "🌄" : "🔗" }}</span>
+            {{ copyMode === "file" ? "File" : "Link" }}
+          </button>
+          <div
+            v-if="showCopyMenu"
+            class="theme-menu file-menu"
+            role="menu"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              class="theme-option"
+              :class="{ active: copyMode === 'file' }"
+              @click="setCopyMode('file')"
+            >
+              Copy PNG as file
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              class="theme-option"
+              :class="{ active: copyMode === 'link' }"
+              @click="setCopyMode('link')"
+            >
+              Copy PNG as link
+            </button>
+          </div>
+        </div>
+        <div class="theme-wrap">
+          <button
+            type="button"
+            class="btn btn-ghost btn-icon-text"
             aria-label="Theme"
             aria-haspopup="true"
             :aria-expanded="showThemeMenu"
@@ -534,7 +822,7 @@ onUnmounted(() => {
             <span
               class="theme-icon"
               aria-hidden="true"
-            >◐</span>
+            >{{ theme === "system" ? "🌗" : theme === "light" ? "🌕" : "🌑" }}</span>
             {{ theme === "system" ? "System" : theme === "light" ? "Light" : "Dark" }}
           </button>
           <div
@@ -576,7 +864,7 @@ onUnmounted(() => {
           class="btn btn-ghost"
           @click="logout"
         >
-          Logout
+          🚪 Logout
         </button>
       </div>
     </header>
@@ -614,7 +902,8 @@ onUnmounted(() => {
                 v-model="title"
                 type="text"
                 placeholder="Title"
-                class="input title-input"
+                maxlength="200"
+                class="input"
               >
               <div class="tags-wrap">
                 <div class="tag-panels">
@@ -634,9 +923,11 @@ onUnmounted(() => {
                     </button>
                   </span>
                   <input
+                    v-if="tagList.length < 20"
                     v-model="tagInput"
                     type="text"
                     placeholder="Tags (comma or enter)"
+                    maxlength="200"
                     class="input tag-input"
                     @keydown="onTagInputKeydown"
                     @blur="commitTagInput"
@@ -646,23 +937,37 @@ onUnmounted(() => {
               <div class="file-selector-row">
                 <div class="file-selector">
                   <label class="file-label">
-                    <span class="file-text">Choose image</span>
+                    <span class="file-text">Choose file</span>
                     <input
                       type="file"
-                      accept="image/*"
+                      :accept="ALL_ACCEPT"
                       class="file-input"
                       @change="handleFileChange"
                     >
                   </label>
-                  <span class="file-sep">or paste image anywhere</span>
+                  <span class="file-sep">or paste anywhere</span>
                 </div>
               </div>
+              <span class="file-hint">Images (PNG, JPG, WebP, SVG…) are converted to PNG. GIF and video (MP4, WebM) kept
+                as-is.</span>
               <div
-                v-if="imageDataUrl"
+                v-if="previewUrl || existingFilePath"
                 class="preview-wrap"
               >
+                <video
+                  v-if="
+                    (previewUrl && processedExt && VIDEO_EXTS.includes(processedExt)) ||
+                      (!previewUrl && existingFilePath && isVideo(existingFilePath))
+                  "
+                  :src="previewUrl || fileUrl(existingFilePath)"
+                  class="preview"
+                  controls
+                  muted
+                  playsinline
+                />
                 <img
-                  :src="imageDataUrl"
+                  v-else
+                  :src="previewUrl || fileUrl(existingFilePath)"
                   class="preview"
                   alt="Preview"
                 >
@@ -670,8 +975,13 @@ onUnmounted(() => {
               <button
                 type="submit"
                 class="btn btn-primary btn-submit"
+                :disabled="isSubmitting"
               >
-                {{ editingMemeId ? "Save" : "Add" }}
+                <span
+                  v-if="isSubmitting"
+                  class="spinner"
+                />
+                {{ isSubmitting ? "Uploading…" : editingMemeId ? "Save" : "Add" }}
               </button>
             </form>
             <p
@@ -746,8 +1056,15 @@ onUnmounted(() => {
         </div>
 
         <div
+          v-if="isLoadingMemes"
+          class="grid-loading"
+        >
+          <span class="spinner spinner-lg" />
+        </div>
+        <div
           ref="gridRef"
           class="grid"
+          :class="{ 'grid-dimmed': isLoadingMemes }"
         >
           <div
             v-for="meme in memes"
@@ -758,18 +1075,22 @@ onUnmounted(() => {
             <button
               type="button"
               class="card-image-btn"
-              @click="copyImage(meme)"
+              @click="copyMeme(meme)"
             >
               <div class="card-image-wrap">
                 <img
-                  :src="meme.imageDataUrl"
+                  :src="cardImageSrc(meme)"
                   :alt="meme.title"
                   class="card-image"
                 >
                 <span
                   v-if="copiedId === meme.id"
                   class="card-copied-badge"
-                >Copied</span>
+                >{{ getCopiedBadgeText(meme) }}</span>
+                <span class="card-info-badges">
+                  <span class="card-badge">{{ formatBytes(meme.fileSize) }}</span>
+                  <span class="card-badge">{{ getMemeTypeLabel(meme.filePath) }}</span>
+                </span>
               </div>
             </button>
             <div class="card-meta">
@@ -964,13 +1285,16 @@ onUnmounted(() => {
   top: 100%;
   right: 0;
   margin-top: 0.25rem;
-  min-width: 8rem;
+  min-width: 6rem;
   padding: 0.25rem;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow);
   z-index: 100;
+}
+.theme-menu.file-menu {
+  min-width: 9rem;
 }
 .theme-option {
   display: block;
@@ -1007,7 +1331,7 @@ onUnmounted(() => {
 .btn {
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  padding: 0.65rem 1.25rem;
+  padding: 0.65rem;
   font-weight: 500;
   cursor: pointer;
   transition:
@@ -1148,9 +1472,6 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 0.75rem;
 }
-.title-input {
-  max-width: 400px;
-}
 .tags-wrap {
   width: 100%;
 }
@@ -1242,6 +1563,11 @@ onUnmounted(() => {
   font-size: 0.85rem;
   color: var(--text-muted);
 }
+.file-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
 .input {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
@@ -1259,6 +1585,14 @@ onUnmounted(() => {
 }
 .btn-submit {
   margin-top: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+.btn-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 .preview {
   display: block;
@@ -1296,6 +1630,41 @@ onUnmounted(() => {
 .select:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+/* ─── Spinner ─── */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  vertical-align: middle;
+}
+.spinner-lg {
+  width: 2rem;
+  height: 2rem;
+  border-width: 3px;
+  color: var(--accent);
+}
+
+/* ─── Grid loading ─── */
+.grid-loading {
+  display: flex;
+  justify-content: center;
+  padding: 3rem 0 1rem;
+}
+.grid-dimmed {
+  opacity: 0.4;
+  pointer-events: none;
+  transition: opacity 0.2s;
 }
 
 /* ─── Grid ─── */
@@ -1360,6 +1729,24 @@ onUnmounted(() => {
   color: var(--bg);
   border-radius: 4px;
 }
+.card-info-badges {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  display: flex;
+  gap: 0.25rem;
+  pointer-events: none;
+}
+.card-badge {
+  padding: 0.15rem 0.35rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border-radius: 3px;
+  white-space: nowrap;
+}
 .card-meta {
   padding: 0.75rem 1rem;
   display: flex;
@@ -1376,6 +1763,8 @@ onUnmounted(() => {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 .card-tags {
   font-size: 0.8rem;
@@ -1386,6 +1775,8 @@ onUnmounted(() => {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 .card-actions {
   display: flex;
@@ -1575,6 +1966,21 @@ onUnmounted(() => {
   .card-tags {
     font-size: 0.7rem;
   }
+  .card-info-badges {
+    top: 0.25rem;
+    right: 0.25rem;
+    gap: 0.15rem;
+  }
+  .card-badge {
+    padding: 0.1rem 0.25rem;
+    font-size: 0.5rem;
+  }
+  .card-copied-badge {
+    bottom: 0.25rem;
+    left: 0.25rem;
+    padding: 0.15rem 0.35rem;
+    font-size: 0.65rem;
+  }
   .card-actions {
     gap: 0.35rem;
     padding: 0.35rem;
@@ -1582,10 +1988,6 @@ onUnmounted(() => {
   .btn-card {
     font-size: 0.7rem;
     padding: 0.3rem 0;
-  }
-  .title-input {
-    max-width: none;
-    width: 100%;
   }
   .preview {
     max-width: 100%;

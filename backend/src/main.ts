@@ -4,10 +4,17 @@ import * as authDb from "./db/auth.ts";
 import memeRoutes from "./routes/memes.ts";
 import authRoutes from "./routes/auth.ts";
 
-const app = new Application();
+const UPLOAD_DIR = Deno.env.get("UPLOAD_DIR") ?? "/data/uploads";
 const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10 MB
 
-// Global error handler
+try {
+  await Deno.mkdir(UPLOAD_DIR, { recursive: true });
+} catch {
+  // ignore
+}
+
+const app = new Application();
+
 app.use(async (ctx, next) => {
   try {
     await next();
@@ -18,7 +25,6 @@ app.use(async (ctx, next) => {
   }
 });
 
-// Security headers
 app.use(async (ctx, next) => {
   const path = ctx.request.url.pathname;
   if (path.startsWith("/api")) {
@@ -28,8 +34,11 @@ app.use(async (ctx, next) => {
   await next();
 });
 
-// Body size limit
 app.use(async (ctx, next) => {
+  const contentType = ctx.request.headers.get("content-type") ?? "";
+  if (contentType.includes("multipart/form-data")) {
+    return await next();
+  }
   const contentLength = parseInt(
     ctx.request.headers.get("content-length") ?? "0",
   );
@@ -41,7 +50,6 @@ app.use(async (ctx, next) => {
   await next();
 });
 
-// Auth middleware — skip /api/auth* and the health-check /api
 app.use(async (ctx, next) => {
   const path = ctx.request.url.pathname;
   if (!path.startsWith("/api")) return await next();
@@ -64,7 +72,6 @@ app.use(async (ctx, next) => {
   await next();
 });
 
-// Routes
 app.use(memeRoutes.routes());
 app.use(memeRoutes.allowedMethods());
 app.use(authRoutes.routes());
