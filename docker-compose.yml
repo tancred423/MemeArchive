@@ -10,6 +10,7 @@ services:
     networks:
       - default
       - mysql-network
+      - web
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     restart: unless-stopped
