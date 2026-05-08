@@ -1,3 +1,7 @@
+> **Archived**
+>
+> Moved to https://gitlab.com/tancred/meme-archive
+
 # Meme Archive
 
 Full-stack app: **Deno + TypeScript** backend, **Vue 3 + TypeScript** frontend. Memes and auth tokens are stored in MySQL.
